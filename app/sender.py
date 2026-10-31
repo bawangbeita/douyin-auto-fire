@@ -403,17 +403,23 @@ async def _await_send_terminal_state(
                 f"{label}发送状态未能确认（发送超时或状态不确定），为避免重复不会自动重试"
             )
         if await _marker_visible(scope, SEND_FAILURE_MARKERS):
+            import os
+            os.makedirs("artifacts", exist_ok=True)
+            await page.screenshot(path="artifacts/send_fail.png", full_page=True)
             raise PageOperationError(f"{label}发送失败，页面提示可以重试")
         if not await _marker_visible(scope, SEND_PENDING_MARKERS):
             # Spinner gone. Require it to STAY clear across the stable window --
             # the retry marker can mount a tick after the spinner disappears.
             await page.wait_for_timeout(SEND_STABLE_INTERVAL_MS)
             if await _marker_visible(scope, SEND_FAILURE_MARKERS):
+                import os
+                os.makedirs("artifacts", exist_ok=True)
+                await page.screenshot(path="artifacts/send_fail.png", full_page=True)
                 raise PageOperationError(f"{label}发送失败，页面提示可以重试")
             if not await _marker_visible(scope, SEND_PENDING_MARKERS):
                 return  # terminal: success
             # spinner reappeared -> keep waiting
-        await page.wait_for_timeout(SEND_POLL_INTERVAL_MS)
+        await page.wait_for_timeout(SEND_POLL_INTERVAL_MS))
 
 
 async def _confirm_outgoing_message(
