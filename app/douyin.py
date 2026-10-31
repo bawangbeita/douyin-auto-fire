@@ -66,7 +66,7 @@ class DouyinChat:
         import logging
         import os
 
-        # 1. 退出搜索状态（"取消"按钮的真实 class 是 searchSearchInputsearch_cancel）
+        # 1. 退出搜索状态
         try:
             cancel = self.page.locator('[class*="searchSearchInputsearch_cancel"]').first
             if await cancel.count():
@@ -76,13 +76,19 @@ class DouyinChat:
                 logging.warning("没找到取消按钮")
         except Exception as e:
             logging.warning("点击取消失败: %s", e)
-        await self.page.wait_for_timeout(2_000)
+
+        # 2. 等会话列表加载出来（Actions 上很慢，最多等 40 秒）
+        rows = self.page.locator('[data-e2e="conversation-item"]')
+        try:
+            await rows.first.wait_for(state="visible", timeout=40_000)
+        except Exception:
+            logging.warning("等待会话列表超时，列表仍为空")
+        await self.page.wait_for_timeout(1_000)
 
         os.makedirs("artifacts", exist_ok=True)
         await self.page.screenshot(path="artifacts/after_cancel.png", full_page=True)
 
-        # 2. 在会话列表里按整行文字匹配（不依赖标题的 class 名）
-        rows = self.page.locator('[data-e2e="conversation-item"]')
+        # 3. 在会话列表里按整行文字匹配
         total = await rows.count()
         logging.warning("会话行数量: %d", total)
         for index in range(total):
@@ -92,8 +98,8 @@ class DouyinChat:
             except Exception:
                 continue
             lines = [line.strip() for line in text.split("\n") if line.strip()]
-            logging.warning("  [%d] visible=%s lines=%s", index, await row.is_visible(), lines[:2])
-            if name in lines[:1] and await row.is_visible():
+            logging.warning("  [%d] lines=%s", index, lines[:2])
+            if lines and lines[0] == name and await row.is_visible():
                 return row
         return None
         
