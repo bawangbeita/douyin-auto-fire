@@ -47,8 +47,23 @@ class DouyinChat:
         await search.fill(name)
         await self.page.wait_for_timeout(1_500)
 
-        result = await self._search_result(name)
+          result = await self._search_result(name)
         if result is None:
+            # ---- 调试：保存截图、页面 HTML 和搜索结果的 class ----
+            await self.page.screenshot(path="debug.png", full_page=True)
+            with open("debug.html", "w", encoding="utf-8") as f:
+                f.write(await self.page.content())
+            try:
+                import logging
+                items = self.page.locator('[class*="SearchPanel"]')
+                n = await items.count()
+                logging.warning("SearchPanel 相关元素数量: %d", n)
+                for i in range(min(n, 15)):
+                    cls = await items.nth(i).get_attribute("class")
+                    txt = (await items.nth(i).inner_text(timeout=500))[:30]
+                    logging.warning("  [%d] class=%s text=%r", i, cls, txt)
+            except Exception as e:
+                logging.warning("调试输出失败: %s", e)
             raise PageOperationError("搜索不到目标好友")
         await result.click(force=True)
         await self._confirm_opened(name)
