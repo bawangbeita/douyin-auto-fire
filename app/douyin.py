@@ -46,29 +46,42 @@ class DouyinChat:
         await search.fill("")
         await search.press_sequentially(name, delay=150)
         await search.press("Enter")
-        await self.page.wait_for_timeout(5_000)
+        await self.page.wait_for_timeout(3_000)
 
         result = await self._search_result(name)
         if result is None:
-            import logging
+            # 搜索搜不到时，退出搜索，直接在会话列表里找
+            result = await self._conversation_fallback(name)
+        if result is None:
             import os
             os.makedirs("artifacts", exist_ok=True)
             await self.page.screenshot(path="artifacts/search_fail.png", full_page=True)
             with open("artifacts/search_fail.html", "w", encoding="utf-8") as f:
                 f.write(await self.page.content())
-            try:
-                items = self.page.locator('[class*="SearchPanel"]')
-                n = await items.count()
-                logging.warning("SearchPanel 相关元素数量: %d", n)
-                for i in range(min(n, 15)):
-                    cls = await items.nth(i).get_attribute("class")
-                    txt = (await items.nth(i).inner_text(timeout=500))[:30]
-                    logging.warning("  [%d] class=%s text=%r", i, cls, txt)
-            except Exception as e:
-                logging.warning("调试输出失败: %s", e)
             raise PageOperationError("搜索不到目标好友")
         await result.click(force=True)
         await self._confirm_opened(name)
+
+    async def _conversation_fallback(self, name: str) -> Locator | None:
+        try:
+            cancel = self.page.get_by_text("取消", exact=True).first
+            if await cancel.count() and await cancel.is_visible():
+                await cancel.click()
+                await self.page.wait_for_timeout(1_500)
+        except Exception:
+            pass
+
+        rows = self.page.locator('[data-e2e="conversation-item"]')
+        for index in range(await rows.count()):
+            row = rows.nth(index)
+            title = row.locator('div[class="conversationConversationItemtitle"]').first
+            if await _text_equals(title, name):
+                try:
+                    if await row.is_visible():
+                        return row
+                except Exception:
+                    continue
+        return None
         
     async def _search_result(self, name: str) -> Locator | None:
         # Search mode renders a separate SearchPanel. Its "发消息" action is the
