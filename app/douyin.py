@@ -44,17 +44,18 @@ class DouyinChat:
         search = await first_visible(self.page, SEARCH_INPUTS, self.timeout_ms)
         await search.click()
         await search.fill("")
-        await search.fill(name)
-        await self.page.wait_for_timeout(1_500)
+        await search.press_sequentially(name, delay=150)
+        await self.page.wait_for_timeout(5_000)
 
-          result = await self._search_result(name)
+        result = await self._search_result(name)
         if result is None:
-            # ---- 调试：保存截图、页面 HTML 和搜索结果的 class ----
-            await self.page.screenshot(path="debug.png", full_page=True)
-            with open("debug.html", "w", encoding="utf-8") as f:
+            import logging
+            import os
+            os.makedirs("artifacts", exist_ok=True)
+            await self.page.screenshot(path="artifacts/search_fail.png", full_page=True)
+            with open("artifacts/search_fail.html", "w", encoding="utf-8") as f:
                 f.write(await self.page.content())
             try:
-                import logging
                 items = self.page.locator('[class*="SearchPanel"]')
                 n = await items.count()
                 logging.warning("SearchPanel 相关元素数量: %d", n)
@@ -67,7 +68,7 @@ class DouyinChat:
             raise PageOperationError("搜索不到目标好友")
         await result.click(force=True)
         await self._confirm_opened(name)
-
+        
     async def _search_result(self, name: str) -> Locator | None:
         # Search mode renders a separate SearchPanel. Its "发消息" action is the
         # correct control; clicking the hidden conversation cache does not mount
