@@ -419,7 +419,7 @@ async def _await_send_terminal_state(
             if not await _marker_visible(scope, SEND_PENDING_MARKERS):
                 return  # terminal: success
             # spinner reappeared -> keep waiting
-        await page.wait_for_timeout(SEND_POLL_INTERVAL_MS))
+        await page.wait_for_timeout(SEND_POLL_INTERVAL_MS)
 
 
 async def _confirm_outgoing_message(
