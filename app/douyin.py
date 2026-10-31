@@ -77,30 +77,40 @@ class DouyinChat:
         except Exception as e:
             logging.warning("点击取消失败: %s", e)
 
-        # 2. 等会话列表加载出来（Actions 上很慢，最多等 40 秒）
+        # 2. 等会话列表出现
         rows = self.page.locator('[data-e2e="conversation-item"]')
         try:
             await rows.first.wait_for(state="visible", timeout=40_000)
         except Exception:
             logging.warning("等待会话列表超时，列表仍为空")
-        await self.page.wait_for_timeout(1_000)
 
+        # 3. 反复检查，等昵称从数字 ID 变成真实名字（最多 60 秒）
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 60
+        titles: list[str] = []
+        while True:
+            titles = []
+            total = await rows.count()
+            for index in range(total):
+                row = rows.nth(index)
+                try:
+                    text = await row.inner_text(timeout=1_000)
+                except Exception:
+                    continue
+                lines = [line.strip() for line in text.split("\n") if line.strip()]
+                if not lines:
+                    continue
+                titles.append(lines[0])
+                if lines[0] == name and await row.is_visible():
+                    logging.warning("找到会话: %s（第 %d 行）", name, index)
+                    return row
+            if loop.time() >= deadline:
+                break
+            await self.page.wait_for_timeout(2_000)
+
+        logging.warning("超时未找到 %s，当前会话标题: %s", name, titles)
         os.makedirs("artifacts", exist_ok=True)
         await self.page.screenshot(path="artifacts/after_cancel.png", full_page=True)
-
-        # 3. 在会话列表里按整行文字匹配
-        total = await rows.count()
-        logging.warning("会话行数量: %d", total)
-        for index in range(total):
-            row = rows.nth(index)
-            try:
-                text = await row.inner_text(timeout=1_000)
-            except Exception:
-                continue
-            lines = [line.strip() for line in text.split("\n") if line.strip()]
-            logging.warning("  [%d] lines=%s", index, lines[:2])
-            if lines and lines[0] == name and await row.is_visible():
-                return row
         return None
         
     async def _search_result(self, name: str) -> Locator | None:
